@@ -184,6 +184,25 @@
     }
     .table-header h2 { font-family: 'Playfair Display', serif; font-size: 16px; }
     .registros-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .btn-export {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 16px;
+      background: transparent;
+      border: 1px solid var(--amber);
+      color: var(--amber-soft);
+      border-radius: 20px;
+      font-size: 12px;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+    .btn-export:hover {
+      background: var(--amber);
+      color: var(--bg);
+    }
 
     table { width: 100%; border-collapse: collapse; }
     thead th {
@@ -293,7 +312,12 @@
   <div class="table-card">
     <div class="table-header">
       <h2>Registros</h2>
-      <span class="registros-count" id="total-registros">0 registros</span>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <span class="registros-count" id="total-registros">0 registros</span>
+        <a class="btn-export" href="/api/exportar-csv" download>
+          ⬇ Exportar CSV
+        </a>
+      </div>
     </div>
     <table>
       <thead>

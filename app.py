@@ -1,7 +1,9 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
 import mysql.connector
 from datetime import datetime, timedelta
 import random
+import csv
+import io
 
 app = Flask(__name__)
 
@@ -161,6 +163,59 @@ def api_resumen():
         })
     except Exception:
         return jsonify(resumen_simulado())
+
+
+@app.route("/api/exportar-csv")
+def exportar_csv():
+    """Exporta todos los registros de la BD como archivo CSV."""
+    try:
+        db  = get_db()
+        cur = db.cursor(dictionary=True)
+        cur.execute("""
+            SELECT
+                s.id,
+                a.nombre    AS almacen,
+                a.ubicacion,
+                s.timestamp,
+                s.temperatura,
+                s.humedad
+            FROM sensores s
+            JOIN almacenes a ON s.almacen_id = a.id
+            WHERE a.id = 1
+            ORDER BY s.timestamp ASC
+        """)
+        rows = cur.fetchall()
+        for r in rows:
+            if hasattr(r["timestamp"], "strftime"):
+                r["timestamp"] = r["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
+        db.close()
+    except Exception:
+        rows = datos_simulados()
+
+    # Generar CSV en memoria con BOM para que Excel lea tildes y ñ correctamente
+    output = io.StringIO()
+    output.write('\ufeff')  # BOM UTF-8
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Almacen", "Ubicacion", "Fecha y Hora", "Temperatura (C)", "Humedad (%)"])
+    for r in rows:
+        writer.writerow([
+            r.get("id", ""),
+            r.get("almacen_nombre", r.get("almacen", "")),
+            r.get("ubicacion", ""),
+            r["timestamp"],
+            r["temperatura"],
+            r["humedad"],
+        ])
+
+    nombre_archivo = f"monitoreo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        output.getvalue().encode("utf-8-sig"),
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{nombre_archivo}\"",
+            "Content-Type": "text/csv; charset=utf-8"
+        }
+    )
 
 
 if __name__ == "__main__":
