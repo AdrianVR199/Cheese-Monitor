@@ -1,165 +1,217 @@
-# 🧀 Monitor de Maduración de Quesos — Guía de configuración
+# Caso de estudio - monitor de maduración de quesos
+
+**Estudiantes:**
+- Miguel Angel Franco Restrepo (22506163)
+- Saulo Quiñones Góngora (22506635)
+- Adrian Felipe Vargas Rojas (22505561)
+
+**Curso:** Inteligencia Artificial aplicada a Internet de las Cosas
+
+**Institución:** Universidad Autónoma de Occidente
+
+**Periodo:** 2026-1S
 
 ---
 
-## 📁 Estructura del proyecto
+## 1. Resumen del proyecto
 
-```
-ChesseMonitor/
-├── app.py
-└── templates/
-    └── dashboard.html
-```
+Este proyecto consiste en el despliegue de un sistema de monitoreo de temperatura y humedad para cámaras de maduración de quesos, utilizando un ESP32 con sensor DHT22 como dispositivo IoT.
+
+La solución fue implementada en dos modalidades complementarias:
+
+- **Implementación local** — usando máquinas virtuales con LXD, HAProxy y Keepalived para alta disponibilidad con failover automático.
+- **Implementación en AWS** — usando EC2 y RDS con separación de subredes pública y privada.
+
+En ambos casos la aplicación web Flask recibe los datos del ESP32, los almacena en una base de datos MySQL y los presenta en un dashboard web con opción de exportación a CSV.
 
 ---
 
-## 🖥️ OPCIÓN A — Correrlo en local (tu PC)
+## 2. Objetivo de la práctica
 
-### 1. Instala dependencias
-```bash
-py -m pip install flask mysql-connector-python
+- Configurar un objeto inteligente (ESP32 + DHT22) para que transmita datos a un servidor.
+- Implementar un servidor web que reciba, procese y almacene los datos del sensor.
+- Aplicar buenas prácticas de infraestructura: separación de capas, alta disponibilidad, seguridad en red y gestión de credenciales.
+
+---
+
+
+## 3. Caso de uso
+
+El sistema simula el monitoreo ambiental de una cámara de maduración de quesos, donde el control de temperatura y humedad es crítico para garantizar la calidad del producto. El sensor DHT22 mide las condiciones del ambiente cada 10 segundos y transmite los datos al servidor, que los almacena y los presenta en un dashboard en tiempo real.
+
+---
+
+## 4. Descripción de la aplicación
+
+La aplicación desarrollada en Flask:
+
+- Recibe datos de temperatura y humedad del ESP32 mediante HTTP POST en formato JSON.
+- Almacena los registros en una base de datos MySQL (tabla `sensores`) con referencia al almacén correspondiente (tabla `almacenes`).
+- Presenta un dashboard web con la última lectura, promedios de la última hora e historial de los últimos 40 registros.
+- Permite exportar todos los registros como archivo CSV descargable desde el navegador.
+- Incluye datos simulados como fallback en caso de que la base de datos no esté disponible.
+
+### Endpoints principales
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/` | Dashboard web |
+| POST | `/datos` | Recibe datos del ESP32 |
+| GET | `/api/datos` | Últimos 40 registros en JSON |
+| GET | `/api/resumen` | Última lectura y promedio de 1h |
+| GET | `/api/exportar-csv` | Descarga CSV con todos los registros |
+
+---
+
+## 5. Implementación local (VMs + LXD + HAProxy)
+
+Esta parte fue implementada sobre máquinas virtuales locales y replica la misma aplicación del caso de quesos en un entorno de alta disponibilidad.
+
+### Arquitectura local
+
+```
+Cliente
+   |
+   | → IP Virtual (Keepalived/VRRP)
+   |
+   ├── LB1 (HAProxy master)  ─┐
+   └── LB2 (HAProxy backup)  ─┤
+                               |
+               ┌───────────────┴───────────────┐
+               ↓                               ↓
+        VM A (LXD)                      VM B (LXD)
+        ├── web-server (Flask)          └── web-server (Flask)
+        └── bd-container (MySQL)            (conecta a bd-container en VM A)
 ```
 
-### 2. Abre `app.py` y cambia estas líneas con tus datos de MySQL local:
-```python
-DB_CONFIG = {
-    "host":     "localhost",    # ← déjalo así
-    "user":     "root",         # ← tu usuario de MySQL
-    "password": "tu_password",  # ← tu contraseña de MySQL
-    "database": "iotdb"         # ← déjalo así
-}
+### Componentes
+
+| Componente | Detalle |
+|---|---|
+| LB1 | HAProxy master + Keepalived (VRRP) |
+| LB2 | HAProxy backup + Keepalived (failover automático) |
+| IP Virtual | Dirección IP compartida entre LB1 y LB2 |
+| VM A | LXD con contenedor `web-server` (Flask) y `bd-container` (MySQL) |
+| VM B | LXD con contenedor `web-server` (Flask) conectado a BD en VM A |
+
+### Características
+
+- **Failover automático:** si LB1 cae, Keepalived migra la IP virtual a LB2 sin intervención manual.
+- **Contenedores LXD:** cada servicio corre en un contenedor de sistema separado dentro de cada VM.
+- **Base de datos centralizada:** el contenedor de BD corre en VM A y es compartido por ambos servidores web.
+- **Snapshots:** se crearon snapshots de cada contenedor para recuperación ante fallos.
+
+---
+
+## 6. Implementación en AWS (EC2 + RDS)
+
+La solución fue desplegada en AWS siguiendo un modelo de separación de capas: el servidor web en una subred pública accesible desde internet y la base de datos en una subred privada sin acceso externo.
+
+### 6.1 Arquitectura AWS
+
+```
+ESP32 (DHT22)
+     |
+     | WiFi → HTTP POST (JSON)
+     ↓
+Internet Gateway (iot_gateway)
+     |
+     ↓
+VPC vpc_IoT (192.168.0.0/16)
+     |
+     ├── Subred pública IoT_server (192.168.1.0/24)
+     │        EC2 Ubuntu t2.micro
+     │        IP elástica: 32.196.10.168
+     │        Flask en puerto 5000
+     │        Gestionado por systemd
+     │              |
+     │              | Puerto 3306 (solo desde sg-servidor-iot)
+     │              ↓
+     └── Subred privada IoT_db (192.168.2.0/24)
+              RDS MySQL db.t3.micro
+              Sin IP pública
+              Solo accesible desde la EC2
 ```
 
-### 3. Crea la base de datos en MySQL
-Abre MySQL Workbench o tu cliente favorito y ejecuta:
-```sql
-CREATE DATABASE iotdb;
-USE iotdb;
+### 5.1 Infraestructura AWS
 
-CREATE TABLE almacenes (
-  id        INT PRIMARY KEY,
-  nombre    VARCHAR(50),
-  ubicacion VARCHAR(100)
-);
-INSERT INTO almacenes VALUES (1, 'Almacén Principal', 'Planta baja');
+| Componente | Detalle |
+|---|---|
+| VPC | `vpc_IoT` — CIDR `192.168.0.0/16` |
+| Subred pública | `IoT_server` — `192.168.1.0/24` — AZ `us-east-1a` |
+| Subred privada | `IoT_db` — `192.168.2.0/24` — AZ `us-east-1a` |
+| Internet Gateway | `iot_gateway` — adjunto a `vpc_IoT` |
+| Tabla de rutas | `0.0.0.0/0 → iot_gateway` asociada solo a `IoT_server` |
+| EC2 | Ubuntu Server 22.04 LTS — `t2.micro` |
+| IP elástica | `32.196.10.168` — fija, no cambia entre sesiones |
+| RDS | MySQL 8.4 — `db.t3.micro` — 20 GiB gp2 |
+| Subnet group RDS | `subnet-group-iot` — subredes `IoT_db` y `subnet-extra` |
 
-CREATE TABLE sensores (
-  id          INT AUTO_INCREMENT PRIMARY KEY,
-  almacen_id  INT,
-  timestamp   DATETIME,
-  temperatura FLOAT,
-  humedad     FLOAT,
-  FOREIGN KEY (almacen_id) REFERENCES almacenes(id)
-);
+### 6.2 Configuración de Security Groups
+
+Se implementó un modelo de mínimo privilegio:
+
+#### sg-servidor-iot (EC2)
+
+| Tipo | Puerto | Origen | Propósito |
+|---|---|---|---|
+| SSH | 22 | IP del administrador | Acceso administrativo |
+| TCP personalizado | 5000 | 0.0.0.0/0 | Recepción de datos del ESP32 y acceso al dashboard |
+
+#### sg-base-datos (RDS)
+
+| Tipo | Puerto | Origen | Propósito |
+|---|---|---|---|
+| MySQL/Aurora | 3306 | sg-servidor-iot | Solo el servidor puede conectarse a la BD |
+
+Este diseño garantiza que la base de datos nunca sea accesible desde internet, solo desde la instancia EC2.
+
+### 6.3 Flujo de tráfico
+
+1. El ESP32 envía un HTTP POST cada 10 segundos a `http://32.196.10.168:5000/datos`.
+2. El Internet Gateway recibe el tráfico y lo enruta hacia la EC2 en la subred pública.
+3. Flask procesa el JSON y lo escribe en la tabla `sensores` de MySQL.
+4. La EC2 se comunica con RDS a través de la red privada de la VPC (puerto 3306).
+5. El usuario accede al dashboard desde el navegador en `http://32.196.10.168:5000`.
+
+---
+
+## 7. Hardware y firmware
+
+### Componentes
+
+| Componente | Detalle |
+|---|---|
+| Microcontrolador | ESP32 |
+| Sensor | DHT22 (temperatura y humedad) |
+| Conexión | WiFi 2.4 GHz |
+| Pin de datos | GPIO 15 |
+
+### Estructura del firmware
+
+```
+ESP32_CODE/
+├── ESP32_CODE.ino    ← Sketch principal
+└── credentials.h    ← Credenciales WiFi y URL del servidor
 ```
 
-### 4. Corre la app
-```bash
-py app.py
-```
+### credentials.h
 
-### 5. Abre el dashboard en tu navegador
-```
-http://localhost:5000
-```
+Las credenciales se separan del código principal por seguridad:
 
-### 6. Configura el ESP32
-En el código del ESP32 cambia la URL del servidor a la IP de tu PC:
 ```cpp
-const char* serverUrl = "http://192.168.X.X:5000/datos";
-// reemplaza 192.168.X.X con la IP local de tu PC
-// para verla corre en PowerShell: ipconfig
-```
-> ⚠️ El ESP32 y tu PC deben estar conectados a la **misma red WiFi**.
+#ifndef CREDENTIALS_H
+#define CREDENTIALS_H
 
----
+#define WIFI_SSID     "RED_WIFI"
+#define WIFI_PASSWORD "PASSWORD_WIFI"
+#define SERVER_URL    "http://URL:5000/datos"
 
-## ☁️ OPCIÓN B — Correrlo en AWS (EC2 Ubuntu)
-
-### 1. Conéctate al servidor por SSH
-```bash
-ssh -i tu-key.pem ubuntu@<IP_PUBLICA_EC2>
+#endif
 ```
 
-### 2. Instala dependencias en el servidor
-```bash
-sudo apt update && sudo apt install python3-pip -y
-pip install flask mysql-connector-python
-```
+### Formato del JSON enviado por el ESP32
 
-### 3. Sube los archivos del proyecto al servidor
-Desde tu PC (en otra terminal):
-```bash
-scp -i tu-key.pem -r ./ChesseMonitor ubuntu@<IP_PUBLICA_EC2>:/home/ubuntu/
-```
-
-### 4. Abre `app.py` y cambia estas líneas con los datos de tu RDS:
-```python
-DB_CONFIG = {
-    "host":     "tu-endpoint.rds.amazonaws.com",  # ← endpoint de RDS (lo encuentras en la consola AWS → RDS)
-    "user":     "admin",                           # ← usuario que pusiste al crear RDS
-    "password": "tu_password",                     # ← contraseña que pusiste al crear RDS
-    "database": "iotdb"                            # ← déjalo así
-}
-```
-
-### 5. Crea la base de datos en RDS
-Conéctate a MySQL desde el servidor EC2:
-```bash
-mysql -h <endpoint-rds> -u admin -p
-```
-Luego ejecuta:
-```sql
-CREATE DATABASE iotdb;
-USE iotdb;
-
-CREATE TABLE almacenes (
-  id        INT PRIMARY KEY,
-  nombre    VARCHAR(50),
-  ubicacion VARCHAR(100)
-);
-INSERT INTO almacenes VALUES (1, 'Almacén Principal', 'Planta baja');
-
-CREATE TABLE sensores (
-  id          INT AUTO_INCREMENT PRIMARY KEY,
-  almacen_id  INT,
-  timestamp   DATETIME,
-  temperatura FLOAT,
-  humedad     FLOAT,
-  FOREIGN KEY (almacen_id) REFERENCES almacenes(id)
-);
-```
-
-### 6. Corre la app en el servidor
-```bash
-cd /home/ubuntu/ChesseMonitor
-py app.py
-# Si py no funciona usa:
-python3 app.py
-```
-
-Para que no se detenga al cerrar la terminal:
-```bash
-nohup python3 app.py &
-```
-
-### 7. Abre el dashboard en tu navegador
-```
-http://<IP_PUBLICA_EC2>:5000
-```
-
-### 8. Configura el ESP32
-En el código del ESP32 cambia la URL del servidor a la IP pública de EC2:
-```cpp
-const char* serverUrl = "http://<IP_PUBLICA_EC2>:5000/datos";
-```
-> ⚠️ Asegúrate de que el **Security Group de EC2** tenga abierto el puerto **5000** en Inbound Rules.
-
----
-
-## 📡 Formato del dato que envía el ESP32
-
-El ESP32 hace un POST con este JSON:
 ```json
 {
   "almacen_id": 1,
@@ -170,11 +222,234 @@ El ESP32 hace un POST con este JSON:
 
 ---
 
-## ✅ Resumen rápido de qué cambiar
+## 8. Estructura del proyecto
 
-| | Local | AWS |
-|---|---|---|
-| `host` en DB_CONFIG | `localhost` | endpoint de RDS |
-| `user` en DB_CONFIG | tu usuario MySQL local | `admin` |
-| URL en el ESP32 | IP local de tu PC | IP pública de EC2 |
-| Puerto a abrir | ninguno extra | puerto 5000 en Security Group |
+```
+Cheese-Monitor/
+├── app.py               ← Aplicación principal Flask
+└── templates/
+    └── dashboard.html   ← Dashboard web
+```
+
+---
+
+## 9. Despliegue en AWS
+
+### 9.1 Requisitos previos
+
+- Instancia EC2 corriendo con Ubuntu 22.04 LTS
+- RDS MySQL disponible en subred privada
+- Security Groups configurados como se describe en la sección 5.2
+
+### 9.2 Configuración del entorno en la EC2
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install python3-pip python3-venv mysql-client -y
+python3 -m venv ~/servidor-iot/venv
+source ~/servidor-iot/venv/bin/activate
+pip install flask mysql-connector-python
+```
+
+### 9.3 Clonar el repositorio
+
+```bash
+cd ~
+git clone https://github.com/tu-usuario/Cheese-Monitor.git
+cd Cheese-Monitor
+```
+
+### 9.4 Gestión de credenciales
+
+Las credenciales **nunca** deben estar en el código. Se gestionan mediante un archivo de variables de entorno:
+
+```bash
+nano ~/.env-iot
+```
+
+Contenido (sin comillas ni `export`):
+```
+DB_HOST=db-instance-iot.cv664u28me10.us-east-1.rds.amazonaws.com
+DB_USER=admin
+DB_PASS=tu_password
+DB_NAME=iot_db
+```
+
+El `app.py` las lee así:
+```python
+import os
+
+DB_CONFIG = {
+    "host":     os.environ.get("DB_HOST"),
+    "user":     os.environ.get("DB_USER"),
+    "password": os.environ.get("DB_PASS"),
+    "database": os.environ.get("DB_NAME")
+}
+```
+
+### 9.5 Crear la base de datos y tablas en RDS
+
+Desde la EC2:
+```bash
+mysql -h db-instance-iot.cv664u28me10.us-east-1.rds.amazonaws.com -u admin -p
+```
+
+```sql
+CREATE DATABASE iot_db;
+USE iot_db;
+
+CREATE TABLE almacenes (
+  id        INT PRIMARY KEY,
+  nombre    VARCHAR(50),
+  ubicacion VARCHAR(100)
+);
+INSERT INTO almacenes VALUES (1, 'Almacén Principal', 'Planta baja');
+
+CREATE TABLE sensores (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  almacen_id  INT,
+  timestamp   DATETIME,
+  temperatura FLOAT,
+  humedad     FLOAT,
+  FOREIGN KEY (almacen_id) REFERENCES almacenes(id)
+);
+```
+
+### 9.6 Configuración del servicio systemd
+
+Para que el servidor arranque automáticamente con la EC2 sin intervención manual:
+
+```bash
+sudo nano /etc/systemd/system/iot-server.service
+```
+
+```ini
+[Unit]
+Description=Servidor IoT Flask
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Cheese-Monitor
+EnvironmentFile=/home/ubuntu/.env-iot
+ExecStart=/home/ubuntu/servidor-iot/venv/bin/python app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable iot-server
+sudo systemctl start iot-server
+```
+
+Verificar estado:
+```bash
+sudo systemctl status iot-server
+```
+
+---
+
+## 10. Configuración local (opcional)
+
+Para correr la aplicación localmente sin AWS:
+
+```bash
+pip install flask mysql-connector-python
+```
+
+Configura el `DB_CONFIG` en `app.py` con tus datos locales:
+```python
+DB_CONFIG = {
+    "host":     "localhost",
+    "user":     "root",
+    "password": "tu_password",
+    "database": "iot_db"
+}
+```
+
+En `credentials.h` del ESP32 cambia la URL a la IP local de tu PC:
+```cpp
+#define SERVER_URL "http://192.168.X.X:5000/datos"
+```
+
+> ⚠️ El ESP32 y tu PC deben estar en la misma red WiFi.
+
+---
+
+## 11. Comandos útiles
+
+```bash
+# Ver estado del servidor
+sudo systemctl status iot-server
+
+# Reiniciar el servidor
+sudo systemctl restart iot-server
+
+# Ver logs en tiempo real
+sudo journalctl -u iot-server -f
+
+# Conectarse a la base de datos desde la EC2
+mysql -h db-instance-iot.cv664u28me10.us-east-1.rds.amazonaws.com -u admin -p
+
+# Ver últimas lecturas
+# USE iot_db;
+# SELECT * FROM sensores ORDER BY id DESC LIMIT 10;
+```
+
+---
+
+## 12. Pruebas y validación
+
+### 11.1 Verificar conexión ESP32 → servidor
+Monitor Serial del ESP32 debe mostrar:
+```
+WiFi conectado
+IP local: 192.168.1.x
+Temp: 12.5 C  Hum: 84.3%
+HTTP 200: {"status": "ok"}
+```
+
+### 11.2 Verificar datos en la base de datos
+```sql
+USE iot_db;
+SELECT * FROM sensores ORDER BY id DESC LIMIT 10;
+```
+
+### 11.3 Verificar dashboard
+Acceder desde el navegador a `http://32.196.10.168:5000` y confirmar que las lecturas se actualizan.
+
+### 11.4 Verificar exportación CSV
+Hacer clic en el botón de exportación del dashboard y confirmar que el archivo descargado contiene los registros correctos.
+
+### 11.5 Verificar aislamiento de la BD
+Intentar conectarse a RDS directamente desde un PC externo debe fallar, confirmando que la base de datos está correctamente aislada en la subred privada.
+
+---
+
+## 13. Resultados obtenidos
+
+- Despliegue exitoso del servidor Flask en EC2 con IP elástica fija
+- Base de datos MySQL en subred privada sin acceso público
+- ESP32 transmitiendo datos cada 10 segundos de forma estable
+- Dashboard web accesible públicamente con actualización en tiempo real
+- Exportación de datos a CSV funcional
+- Servidor configurado con systemd para auto-arranque
+
+---
+
+## 14. Lecciones aprendidas
+
+- El subnet group de RDS requiere mínimo 2 zonas de disponibilidad aunque solo se use una.
+- Las variables de entorno en systemd requieren un formato diferente al de `.bashrc` (sin `export`).
+- Las IPs públicas de EC2 en AWS Academy cambian entre sesiones; una IP elástica resuelve este problema.
+- El Security Group de la base de datos debe referenciar el SG del servidor, no una IP, para mayor robustez.
+
+---
+
+## 15. Uso académico
+
+Este proyecto fue desarrollado con fines educativos en el contexto de prácticas de Inteligencia Artificial aplicada a Internet de las Cosas.
