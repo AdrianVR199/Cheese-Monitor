@@ -3,7 +3,7 @@
 #include <HTTPClient.h>
 #include <DHT.h>
 
-#define DHTPIN  15
+#define DHTPIN  // Ajustar según corresponda
 #define DHTTYPE DHT22    
 
 DHT dht(DHTPIN, DHTTYPE);
