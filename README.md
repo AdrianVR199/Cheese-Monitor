@@ -164,7 +164,7 @@ Se implementó un modelo de mínimo privilegio:
 |---|---|---|---|
 | MySQL/Aurora | 3306 | sg-servidor-iot | Solo el servidor puede conectarse a la BD |
 
-Este diseño garantiza que la base de datos nunca sea accesible desde internet, solo desde la instancia EC2.
+Este diseño garantiza que la base de datos nunca sea accesible desde internet, solo desde la instancia EC2. Como nota adicional, Flask usa el puerto 5000 por defecto, si bien los puertos estándar web son el 80 y el 443, usarlos directamente con Flask requiere configuración adicional que va más allá del alcance de esta práctica. Para un despliegue en producción se añadiría una capa intermedia que gestione el tráfico en el puerto 80, pero para esta implementación académica el puerto 5000 es suficiente y funcional.
 
 ### 6.3 Flujo de tráfico
 
@@ -361,7 +361,7 @@ Para correr la aplicación localmente sin AWS:
 pip install flask mysql-connector-python
 ```
 
-Configura el `DB_CONFIG` en `app.py` con tus datos locales:
+Configura el `DB_CONFIG` en `app.py` con datos locales:
 ```python
 DB_CONFIG = {
     "host":     "localhost",
@@ -376,8 +376,7 @@ En `credentials.h` del ESP32 cambia la URL a la IP local de tu PC:
 #define SERVER_URL "http://192.168.X.X:5000/datos"
 ```
 
-> ⚠️ El ESP32 y tu PC deben estar en la misma red WiFi.
-
+> El ESP32 y el PC deben estar en la misma red WiFi.
 ---
 
 ## 11. Comandos útiles
@@ -404,28 +403,28 @@ mysql -h db-instance-iot.cv664u28me10.us-east-1.rds.amazonaws.com -u admin -p
 
 ## 12. Pruebas y validación
 
-### 11.1 Verificar conexión ESP32 → servidor
-Monitor Serial del ESP32 debe mostrar:
+### 12.1 Verificar conexión entre la ESP32 y el servidor:
+El monitor Serial del ESP32 debe mostrar:
 ```
 WiFi conectado
-IP local: 192.168.1.x
+IP local: 192.x.x.x
 Temp: 12.5 C  Hum: 84.3%
 HTTP 200: {"status": "ok"}
 ```
 
-### 11.2 Verificar datos en la base de datos
+### 12.2 Verificar datos en la base de datos
 ```sql
 USE iot_db;
 SELECT * FROM sensores ORDER BY id DESC LIMIT 10;
 ```
 
-### 11.3 Verificar dashboard
+### 12.3 Verificar dashboard
 Acceder desde el navegador a `http://32.196.10.168:5000` y confirmar que las lecturas se actualizan.
 
-### 11.4 Verificar exportación CSV
+### 12.4 Verificar exportación CSV
 Hacer clic en el botón de exportación del dashboard y confirmar que el archivo descargado contiene los registros correctos.
 
-### 11.5 Verificar aislamiento de la BD
+### 12.5 Verificar aislamiento de la BD
 Intentar conectarse a RDS directamente desde un PC externo debe fallar, confirmando que la base de datos está correctamente aislada en la subred privada.
 
 ---
