@@ -133,7 +133,7 @@ Internet Gateway (iot_gateway)
 VPC vpc_IoT (192.168.0.0/16)
      |
      ├── Subred pública IoT_server (192.168.1.0/24)
-     │        EC2 Ubuntu t2.micro
+     │        EC2 Ubuntu t3.small
      │        IP elástica: 32.196.10.168
      │        Flask en puerto 5000
      │        Gestionado por systemd
@@ -146,7 +146,7 @@ VPC vpc_IoT (192.168.0.0/16)
               Solo accesible desde la EC2
 ```
 
-### 5.1 Infraestructura AWS
+### 6.2 Infraestructura AWS
 
 | Componente | Detalle |
 |---|---|
@@ -160,7 +160,7 @@ VPC vpc_IoT (192.168.0.0/16)
 | RDS | MySQL 8.4 — `db.t3.micro` — 20 GiB gp2 |
 | Subnet group RDS | `subnet-group-iot` — subredes `IoT_db` y `subnet-extra` |
 
-### 6.2 Configuración de Security Groups
+### 6.3 Configuración de Security Groups
 
 Se implementó un modelo de mínimo privilegio:
 
@@ -179,7 +179,7 @@ Se implementó un modelo de mínimo privilegio:
 
 Este diseño garantiza que la base de datos nunca sea accesible desde internet, solo desde la instancia EC2. Como nota adicional, Flask usa el puerto 5000 por defecto, si bien los puertos estándar web son el 80 y el 443, usarlos directamente con Flask requiere configuración adicional que va más allá del alcance de esta práctica. Para un despliegue en producción se añadiría una capa intermedia que gestione el tráfico en el puerto 80, pero para esta implementación académica el puerto 5000 es suficiente y funcional.
 
-### 6.3 Flujo de tráfico
+### 6.4 Flujo de tráfico
 
 1. El ESP32 envía un HTTP POST cada 10 segundos a `http://32.196.10.168:5000/datos`.
 2. El Internet Gateway recibe el tráfico y lo enruta hacia la EC2 en la subred pública.
@@ -274,7 +274,7 @@ cd Cheese-Monitor
 
 ### 9.4 Gestión de credenciales
 
-Las credenciales **nunca** deben estar en el código. Se gestionan mediante un archivo de variables de entorno:
+Las credenciales nunca deben estar en el código. Se gestionan mediante un archivo de variables de entorno:
 
 ```bash
 nano ~/.env-iot
@@ -436,6 +436,6 @@ Intentar conectarse a RDS directamente desde un PC externo debe fallar, confirma
 - Para la implementación local se debe verificar la IP que asigna el router antes de realizar la configuración de la infraestructura
 ---
 
-## 15. Uso académico
+## 14. Uso académico
 
 Este proyecto fue desarrollado con fines educativos en el contexto de prácticas de Inteligencia Artificial aplicada a Internet de las Cosas.
