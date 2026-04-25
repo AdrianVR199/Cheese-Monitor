@@ -366,7 +366,7 @@ sudo systemctl status iot-server
 
 ---
 
-## 11. Comandos útiles
+## 10. Comandos útiles
 
 ```bash
 # Ver estado del servidor
@@ -388,9 +388,9 @@ mysql -h db-instance-iot.cv664u28me10.us-east-1.rds.amazonaws.com -u admin -p
 
 ---
 
-## 12. Pruebas y validación
+## 11. Pruebas y validación
 
-### 12.1 Verificar conexión entre la ESP32 y el servidor:
+### 11.1 Verificar conexión entre la ESP32 y el servidor:
 El monitor Serial del ESP32 debe mostrar:
 ```
 WiFi conectado
@@ -399,24 +399,24 @@ Temp: 12.5 C  Hum: 84.3%
 HTTP 200: {"status": "ok"}
 ```
 
-### 12.2 Verificar datos en la base de datos
+### 11.2 Verificar datos en la base de datos
 ```sql
 USE iot_db;
 SELECT * FROM sensores ORDER BY id DESC LIMIT 10;
 ```
 
-### 12.3 Verificar dashboard
+### 11.3 Verificar dashboard
 Acceder desde el navegador a `http://32.196.10.168:5000` y confirmar que las lecturas se actualizan.
 
-### 12.4 Verificar exportación CSV
+### 11.4 Verificar exportación CSV
 Hacer clic en el botón de exportación del dashboard y confirmar que el archivo descargado contiene los registros correctos.
 
-### 12.5 Verificar aislamiento de la BD
+### 11.5 Verificar aislamiento de la BD
 Intentar conectarse a RDS directamente desde un PC externo debe fallar, confirmando que la base de datos está correctamente aislada en la subred privada.
 
 ---
 
-## 13. Resultados obtenidos
+## 12. Resultados obtenidos
 
 - Despliegue exitoso del servidor Flask en EC2 con IP elástica fija
 - Base de datos MySQL en subred privada sin acceso público
@@ -427,13 +427,13 @@ Intentar conectarse a RDS directamente desde un PC externo debe fallar, confirma
 
 ---
 
-## 14. Lecciones aprendidas
+## 13. Lecciones aprendidas
 
 - El subnet group de RDS requiere mínimo 2 zonas de disponibilidad aunque solo se use una.
 - Las variables de entorno en systemd requieren un formato diferente al de `.bashrc` (sin `export`).
 - Las IPs públicas de EC2 en AWS Academy cambian entre sesiones; una IP elástica resuelve este problema.
 - El Security Group de la base de datos debe referenciar el SG del servidor, no una IP, para mayor robustez.
-
+- Para la implementación local se debe verificar la IP que asigna el router antes de realizar la configuración de la infraestructura
 ---
 
 ## 15. Uso académico
