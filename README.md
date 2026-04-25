@@ -97,8 +97,8 @@ Cliente
 ### Infraestructura
 La arquitectura se compone de cuatro máquinas virtuales con los siguientes roles:
 
-**2 Load Balancers (haServer1 y haServer2)**: Configurados con HAProxy y Keepalived mediante el protocolo VRRP, que gestiona una IP virtual flotante (192.168.1.100). En caso de fallo del balanceador primario, el secundario toma automáticamente la IP virtual, garantizando continuidad del servicio sin intervención manual.
-**2 Servidores de aplicación (VM-A y VM-B)**: Cada uno contiene un contenedor LXD con la aplicación web desarrollada en Flask y servida con Gunicorn. Únicamente server1 aloja un contenedor adicional con la base de datos MySQL.
+- **2 Load Balancers (haServer1 y haServer2)**: Configurados con HAProxy y Keepalived mediante el protocolo VRRP, que gestiona una IP virtual flotante (192.168.1.100). En caso de fallo del balanceador primario, el secundario toma automáticamente la IP virtual, garantizando continuidad del servicio sin intervención manual.
+- **2 Servidores de aplicación (VM-A y VM-B)**: Cada uno contiene un contenedor LXD con la aplicación web desarrollada en Flask y servida con Gunicorn. Únicamente server1 aloja un contenedor adicional con la base de datos MySQL.
 
 ### Aplicación web
 La aplicación permite la visualización en tiempo real de datos de temperatura y humedad provenientes de un sensor DHT22 conectado a una ESP32, en el contexto de monitoreo de una cámara de maduración de quesos. Incluye:
