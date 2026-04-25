@@ -65,7 +65,7 @@ La aplicación desarrollada en Flask:
 
 ## 5. Implementación local (VMs + LXD + HAProxy)
 
-Esta parte fue implementada sobre máquinas virtuales locales y replica la misma aplicación del caso de quesos en un entorno de alta disponibilidad.
+Se diseñó e implementó una arquitectura de alta disponibilidad en un entorno local virtualizado, utilizando VirtualBox con Vagrant para la gestión de cuatro máquinas virtuales. La solución garantiza disponibilidad continua del servicio mediante balanceo de carga y failover automático.
 
 ### Arquitectura local
 
@@ -91,15 +91,28 @@ Cliente
 | LB1 | HAProxy master + Keepalived (VRRP) |
 | LB2 | HAProxy backup + Keepalived (failover automático) |
 | IP Virtual | Dirección IP compartida entre LB1 y LB2 |
-| VM A | LXD con contenedor `web-server` (Flask) y `bd-container` (MySQL) |
-| VM B | LXD con contenedor `web-server` (Flask) conectado a BD en VM A |
+| VM-A | LXD con contenedor `web-server` (Flask) y `bd-container` (MySQL) |
+| VM-B | LXD con contenedor `web-server` (Flask) conectado a BD en VM A |
 
-### Características
+### Infraestructura
+La arquitectura se compone de cuatro máquinas virtuales con los siguientes roles:
 
-- **Failover automático:** si LB1 cae, Keepalived migra la IP virtual a LB2 sin intervención manual.
-- **Contenedores LXD:** cada servicio corre en un contenedor de sistema separado dentro de cada VM.
-- **Base de datos centralizada:** el contenedor de BD corre en VM A y es compartido por ambos servidores web.
-- **Snapshots:** se crearon snapshots de cada contenedor para recuperación ante fallos.
+**2 Load Balancers (haServer1 y haServer2)**: Configurados con HAProxy y Keepalived mediante el protocolo VRRP, que gestiona una IP virtual flotante (192.168.1.100). En caso de fallo del balanceador primario, el secundario toma automáticamente la IP virtual, garantizando continuidad del servicio sin intervención manual.
+**2 Servidores de aplicación (VM-A y VM-B)**: Cada uno contiene un contenedor LXD con la aplicación web desarrollada en Flask y servida con Gunicorn. Únicamente server1 aloja un contenedor adicional con la base de datos MySQL.
+
+### Aplicación web
+La aplicación permite la visualización en tiempo real de datos de temperatura y humedad provenientes de un sensor DHT22 conectado a una ESP32, en el contexto de monitoreo de una cámara de maduración de quesos. Incluye:
+
+- Visualización de valores actuales y promedios por hora
+- Gráficas históricas de temperatura y humedad
+- Exportación de datos en formato CSV
+- Identificador de servidor para verificar el balanceo de carga
+
+### Base de datos
+Se utilizó MySQL desplegado en un contenedor LXD en server1. Se configuró el parámetro bind-address = 0.0.0.0 para permitir conexiones externas, y se definieron proxy devices en LXD para redirigir el tráfico de los puertos 80 (aplicación web) y 3306 (MySQL) hacia los contenedores correspondientes.
+
+### Integración con ESP32
+El dispositivo ESP32 con sensor DHT22 envía datos de temperatura y humedad cada 10 segundos mediante HTTP POST a la IP virtual del balanceador, dentro de la misma red local. Los datos son almacenados en MySQL y visualizados en tiempo real en el dashboard.
 
 ---
 
