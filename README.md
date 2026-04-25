@@ -366,32 +366,6 @@ sudo systemctl status iot-server
 
 ---
 
-## 10. Configuración local (opcional)
-
-Para correr la aplicación localmente sin AWS:
-
-```bash
-pip install flask mysql-connector-python
-```
-
-Configura el `DB_CONFIG` en `app.py` con datos locales:
-```python
-DB_CONFIG = {
-    "host":     "localhost",
-    "user":     "root",
-    "password": "tu_password",
-    "database": "iot_db"
-}
-```
-
-En `credentials.h` del ESP32 cambia la URL a la IP local de tu PC:
-```cpp
-#define SERVER_URL "http://192.168.X.X:5000/datos"
-```
-
-> El ESP32 y el PC deben estar en la misma red WiFi.
----
-
 ## 11. Comandos útiles
 
 ```bash
